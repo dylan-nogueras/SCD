@@ -10,6 +10,7 @@ using namespace std ;
 using namespace HM ;
 
 const int num_clientes = 3; // número de clientes
+mutex mtx;
 
 //**********************************************************************
 // plantilla de función para generar un entero aleatorio uniformemente
@@ -55,13 +56,17 @@ Barberia::Barberia(  )
 void Barberia::cortarPelo(int num_cliente)
 {
     // El cliente espera a que el barbero no esté ocupado
-    if (!silla.empty()){
+    if (!silla.empty() || !sala_espera.empty()){
+        cout << "El cliente " << num_cliente << " espera en la sala. " << endl;
         sala_espera.wait();
-        cout << "El cliente " << num_cliente << " espera. " << endl;
     }
     // El cliente despierta al barbero
-    barbero.signal();
-    cout << "El cliente " << num_cliente << " entra. " << endl;
+    if (!barbero.empty()){
+        cout << "El cliente " << num_cliente << " despierta al barbero. " << endl;
+        barbero.signal();
+    }
+
+    cout << "El cliente " << num_cliente << " pasa y se sienta para ser pelado. " << endl;
     silla.wait();  
 }
 // -----------------------------------------------------------------------------
@@ -70,12 +75,14 @@ void Barberia::cortarPelo(int num_cliente)
 void Barberia::siguienteCliente()
 {
     if (sala_espera.empty() && silla.empty()){
-        barbero.wait();
         cout << "El barbero se duerme. " << endl;
+        barbero.wait();
     }
 
-    cout << "Que pase el siguiente, por favor. Hay " << sala_espera.get_nwt() << " clientes en espera. " << endl;
-    sala_espera.signal();
+    if (silla.empty()){
+        cout << "Que pase el siguiente, por favor. Hay " << sala_espera.get_nwt() << " clientes en espera. " << endl;
+        sala_espera.signal();
+    }
     
 }
 // -----------------------------------------------------------------------------
@@ -84,7 +91,6 @@ void Barberia::siguienteCliente()
 void Barberia::finCliente(){
     // Avisa al cliente de que ha terminado de pelarlo
     silla.signal();
-    cout << "El barbero ha terminado de pelar. " << endl;
 }
 
 // *****************************************************************************
@@ -95,8 +101,14 @@ void cortarPeloACliente()
 {
     // calcular milisegundos aleatorios de duración de la acción de pelar)
     chrono::milliseconds duracion_pelar( aleatorio<20,200>() );
-    cout << "El barbero está pelando. " << endl;
+    mtx.lock();
+    cout << "El barbero está cortando el pelo. Tarda " << duracion_pelar.count() << " milisegundos. " << endl;
+    mtx.unlock();
     this_thread::sleep_for(duracion_pelar);
+    
+    mtx.lock();
+    cout << "El barbero ha terminado de pelar. " << endl;
+    mtx.unlock();
 }
 
 //-------------------------------------------------------------------------
@@ -120,13 +132,16 @@ void esperarFueraBarberia( int num_cliente)
 
     // calcular milisegundos aleatorios de duración de la acción de la espera)
     chrono::milliseconds duracion_espera( aleatorio<20,200>() );
-
+    mtx.lock();
+    cout << "El cliente " << num_cliente << " espera fuera " << duracion_espera.count() << " milisegundos. " << endl;
+    mtx.unlock();
     // espera bloqueada un tiempo igual a ''duracion_espera' milisegundos
     this_thread::sleep_for(duracion_espera);
 
     // informa de que ha terminado de esperar
-
-    cout << "El cliente " << num_cliente << "  : termina de esperar." << endl;
+    mtx.lock();
+    cout << "El cliente " << num_cliente << " termina de esperar fuera y entra de nuevo a la barbería." << endl;
+    mtx.unlock();
 }
 
 //----------------------------------------------------------------------
