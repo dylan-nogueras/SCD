@@ -1,3 +1,4 @@
+// g++ -std=c++11 -pthread -o fum fumadores_su.cpp HoareMonitor.cpp
 #include <iostream>
 #include <cassert>
 #include <thread>
@@ -9,6 +10,7 @@
 using namespace std ;
 using namespace HM ;
 
+mutex mtx;
 
 //**********************************************************************
 // plantilla de función para generar un entero aleatorio uniformemente
@@ -122,16 +124,17 @@ void fumar( int num_fumador )
     chrono::milliseconds duracion_fumar( aleatorio<20,200>() );
 
     // informa de que comienza a fumar
-
+    mtx.lock();
     cout << "Fumador " << num_fumador << "  :"
     << " empieza a fumar (" << duracion_fumar.count() << " milisegundos)" << endl;
-
+    mtx.unlock();
     // espera bloqueada un tiempo igual a ''duracion_fumar' milisegundos
     this_thread::sleep_for( duracion_fumar );
 
     // informa de que ha terminado de fumar
-
+    mtx.lock();
     cout << "Fumador " << num_fumador << "  : termina de fumar, comienza espera de ingrediente." << endl;
+    mtx.unlock();
 }
 
 //----------------------------------------------------------------------
