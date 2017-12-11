@@ -21,7 +21,8 @@ using namespace std::chrono ;
 
 const int
     num_filosofos = 5 ,
-    num_procesos  = 2*num_filosofos+1,
+    num_procesos  = 2*num_filosofos,
+    num_procesos_esperados = num_procesos + 1,
     etiqueta_coger = 0,
     etiqueta_soltar = 1,
     etiqueta_sentarse = 2,
@@ -54,11 +55,7 @@ void funcion_filosofos( int id )
     {
         // Esta solución evita el interbloqueo con un camarero
         cout << "Filósofo " << id << " solicita al camarero sentarse. " << endl;
-        MPI_Ssend(NULL, 0, MPI_INT, camarero, etiqueta_sentarse, MPI_COMM_WORLD);
-        
-        MPI_Recv ( NULL, 0, MPI_INT, camarero, etiqueta_sentarse, MPI_COMM_WORLD,&estado );
-        cout << "El filósofo " << id << " se ha sentado en la mesa. " << endl;    
-        // El filósofo se sienta
+        MPI_Ssend(&id, 1, MPI_INT, camarero, etiqueta_sentarse, MPI_COMM_WORLD);
 
         // Coge primero el tenedor izquierdo y después el derecho
         cout <<"Filósofo " <<id << " solicita ten. izq." <<id_ten_izq <<endl;
@@ -83,10 +80,11 @@ void funcion_filosofos( int id )
         MPI_Ssend(&id, 1, MPI_INT, id_ten_der, etiqueta_soltar, MPI_COMM_WORLD);
 
         // El filósofo se levanta
-        cout << "Filósofo " << id << " se levanta de la mesa. " << endl;
+        cout << "Filósofo " << id << " avisa de que se levanta. " << endl;
         MPI_Ssend(&id, 1, MPI_INT, camarero, etiqueta_levantarse, MPI_COMM_WORLD);
+        cout << "El filósofo " << id << " se levanta." << endl;
 
-        cout << "Filósofo " << id << " comienza a pensar" << endl;
+        cout << "Filósofo " << id << " comienza a pensar." << endl;
         sleep_for( milliseconds( aleatorio<10,100>() ) );
     }
 }
@@ -115,29 +113,25 @@ void funcion_tenedores( int id )
 
 void funcion_camarero()
 {
-    int valor, filosofos_sentados = 0;
+    int valor, filosofos_sentados = 0, etiqueta;
     MPI_Status estado;
 
     while (true){
         // recibir petición de cualquier filósofo para sentarse
-        if (filosofos_sentados < num_filosofos){
-            MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &estado);
+        if (filosofos_sentados < num_filosofos-1){
+            etiqueta = MPI_ANY_TAG;
         }else{
-            MPI_Probe(MPI_ANY_SOURCE, etiqueta_levantarse, MPI_COMM_WORLD, &estado);
+            etiqueta = etiqueta_levantarse;
         }     
 
-        if (estado.MPI_TAG == etiqueta_levantarse){
-            valor = estado.MPI_SOURCE;
-            MPI_Recv (NULL, 0, MPI_INT, valor, etiqueta_levantarse, MPI_COMM_WORLD,&estado );
-            filosofos_sentados--;
-            cout << "El filósofo " << valor << " se levanta, quedando " << filosofos_sentados << " filósofos en la mesa." << endl;
-        }else if(estado.MPI_TAG == etiqueta_sentarse){
-            valor = estado.MPI_SOURCE;
-            MPI_Recv (NULL, 0, MPI_INT, valor, etiqueta_sentarse, MPI_COMM_WORLD,&estado );
-            filosofos_sentados++;
+        MPI_Recv (&valor, 1, MPI_INT, MPI_ANY_SOURCE, etiqueta, MPI_COMM_WORLD, &estado );
 
-            MPI_Ssend(NULL, 0, MPI_INT, valor, etiqueta_sentarse, MPI_COMM_WORLD);
-            cout << "El filósofo " << valor << " se sienta, habiendo " << filosofos_sentados << " filósofos sentados. " << endl;
+        if(estado.MPI_TAG == etiqueta_levantarse){  
+            filosofos_sentados--;
+            cout << "El camarero recibe petición de levantarse del filósofo " << valor << ". Quedan " << filosofos_sentados << " filósofos en la mesa." << endl;
+        }else if(estado.MPI_TAG == etiqueta_sentarse){
+            filosofos_sentados++;
+            cout << "El camarero recibe petición de sentarse del filósofo " << valor << ". Hay " << filosofos_sentados << " filósofos sentados. " << endl;
         }
     }
        
@@ -152,7 +146,7 @@ int main( int argc, char** argv )
     MPI_Comm_size( MPI_COMM_WORLD, &num_procesos_actual );
 
 
-    if ( num_procesos == num_procesos_actual )
+    if ( num_procesos_esperados == num_procesos_actual )
     {
         // ejecutar la función correspondiente a 'id_propio'
         if (id_propio == 10)
